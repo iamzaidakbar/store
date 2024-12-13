@@ -5,6 +5,7 @@
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-rgb: 255, 255, 255;
+<<<<<<< HEAD
   --space-xs: 0.5rem;  /* 8px */
   --space-sm: 0.75rem; /* 12px */
   --space-md: 1rem;    /* 16px */
@@ -13,6 +14,9 @@
   
   --container-padding: 1.5rem;
   --navbar-height: 3.5rem;
+=======
+  --navbar-height: 4rem;
+>>>>>>> 771b483 (Remove unused test files, global CSS, and deprecated components; update Navbar for improved navigation and styling)
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +34,10 @@ body {
 @layer components {
   .container {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  
+  .container-px {
+    @apply px-4 md:px-8;
   }
   
   .btn {
