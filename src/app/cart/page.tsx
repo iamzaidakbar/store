@@ -1,48 +1,74 @@
 'use client'
 
-import { useCartStore } from '@/store/useCartStore'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { loadStripe } from '@stripe/stripe-js'
+import { motion } from 'framer-motion'
+
+interface CartItem {
+  id: string
+  quantity: number
+  product: {
+    id: string
+    name: string
+    price: number
+    images: string[]
+  }
+}
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, total } = useCartStore()
-  const { user } = useAuthStore()
+  const [cart, setCart] = useState<{ items: CartItem[] } | null>(null)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  const handleCheckout = async () => {
-    if (!user) {
-      router.push('/login?redirect=/cart')
-      return
-    }
+  useEffect(() => {
+    fetchCart()
+  }, [])
 
+  const fetchCart = async () => {
     try {
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, userId: user.id }),
-      })
-      const { sessionId } = await response.json()
+      const response = await fetch('/api/cart')
+      if (!response.ok) {
+        throw new Error('Failed to fetch cart')
+      }
+      const data = await response.json()
+      setCart(data)
+    } catch (error) {
+      console.error('Error fetching cart:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY!)
-      await stripe?.redirectToCheckout({ sessionId })
+  const handleCheckout = async () => {
+    try {
+      const response = await fetch('/api/orders', {
+        method: 'POST'
+      })
+      const data = await response.json()
+      if (data.sessionId) {
+        router.push(`/checkout?session_id=${data.sessionId}`)
+      }
     } catch (error) {
       console.error('Checkout error:', error)
     }
   }
 
+  if (loading) return <div>Loading...</div>
+
   return (
     <div className="container py-8">
       <h1 className="text-2xl font-bold mb-6">Shopping Cart</h1>
-      {items.length === 0 ? (
+      {!cart?.items.length ? (
         <p>Your cart is empty</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2 space-y-4">
-            {items.map((item) => (
-              <div
-                key={item.product.id}
+            {cart.items.map((item) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 className="flex gap-4 bg-white p-4 rounded-lg shadow"
               >
                 <Image
@@ -52,41 +78,31 @@ export default function CartPage() {
                   height={100}
                   className="object-cover rounded"
                 />
-                <div className="flex-1">
+                <div>
                   <h3 className="font-semibold">{item.product.name}</h3>
                   <p className="text-gray-600">
-                    ${Number(item.product.price).toFixed(2)}
+                    ${item.product.price.toFixed(2)} x {item.quantity}
                   </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        updateQuantity(item.product.id, parseInt(e.target.value))
-                      }
-                      className="w-20 px-2 py-1 border rounded"
-                    />
-                    <button
-                      onClick={() => removeItem(item.product.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  <p className="font-semibold mt-1">
+                    Total: ${(item.product.price * item.quantity).toFixed(2)}
+                  </p>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
           <div className="bg-white p-4 rounded-lg shadow h-fit">
             <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
             <div className="flex justify-between mb-4">
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>
+                ${cart.items
+                  .reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+                  .toFixed(2)}
+              </span>
             </div>
             <button
               onClick={handleCheckout}
-              className="w-full btn-primary"
+              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
             >
               Proceed to Checkout
             </button>

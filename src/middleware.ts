@@ -1,38 +1,28 @@
 import { NextResponse } from 'next/server'
-import { verify } from 'jsonwebtoken'
-import type { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  // Paths that require authentication
-  const protectedPaths = ['/admin', '/api/admin']
-  const isProtectedPath = protectedPaths.some(path => 
-    request.nextUrl.pathname.startsWith(path)
-  )
-
-  if (!isProtectedPath) return NextResponse.next()
-
+export function middleware(request: NextRequest) {
   const token = request.cookies.get('token')?.value
+  const isAuthPage = ['/login', '/register'].includes(request.nextUrl.pathname)
+  const isAdminRoute = request.nextUrl.pathname.startsWith('/admin')
 
-  if (!token) {
+  // If trying to access auth pages while logged in
+  if (isAuthPage && token) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
+  // If trying to access admin routes without being logged in
+  if (isAdminRoute && !token) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  try {
-    const decoded = verify(token, process.env.JWT_SECRET!)
-    const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('user', JSON.stringify(decoded))
-
-    return NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    })
-  } catch (error) {
-    console.error('Middleware error:', error)
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/admin/:path*'],
+  matcher: [
+    '/login',
+    '/register',
+    '/admin/:path*'
+  ]
 } 

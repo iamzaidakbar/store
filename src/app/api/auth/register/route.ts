@@ -1,14 +1,34 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-import { sign } from 'jsonwebtoken'
 
 export async function POST(request: Request) {
   try {
-    const { email, password, name } = await request.json()
+    const body = await request.json()
+    const { name, email, password } = body
 
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({ where: { email } })
+    // Basic validation
+    if (!name || !email || !password) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Email format validation
+    const emailRegex = /\S+@\S+\.\S+/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    })
+
     if (existingUser) {
       return NextResponse.json(
         { error: 'Email already registered' },
@@ -19,31 +39,27 @@ export async function POST(request: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create user
+    // Create user in database
     const user = await prisma.user.create({
       data: {
-        email,
         name,
+        email,
         password: hashedPassword,
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      }
     })
 
-    // Generate token
-    const token = sign({ userId: user.id }, process.env.JWT_SECRET!, {
-      expiresIn: '7d',
-    })
+    return NextResponse.json({
+      success: true,
+      message: 'Registration successful',
+      user
+    }, { status: 201 })
 
-    // Return response with cookie
-    const { password: _, ...userWithoutPassword } = user
-    const response = NextResponse.json({ user: userWithoutPassword })
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    })
-
-    return response
   } catch (error) {
     console.error('Registration error:', error)
     return NextResponse.json(
